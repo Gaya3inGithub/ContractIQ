@@ -63,13 +63,13 @@ public class EnvLoader {
     }
 
     public static String get(String key, String defaultValue) {
-        String systemEnv = System.getenv(key);
-        if (systemEnv != null && !systemEnv.trim().isEmpty()) {
-            return systemEnv.trim();
-        }
         String fileVal = envMap.get(key);
         if (fileVal != null && !fileVal.trim().isEmpty()) {
             return fileVal.trim();
+        }
+        String systemEnv = System.getenv(key);
+        if (systemEnv != null && !systemEnv.trim().isEmpty()) {
+            return systemEnv.trim();
         }
         return defaultValue;
     }

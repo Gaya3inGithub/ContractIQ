@@ -3,6 +3,7 @@ package com.contractiq.config;
 import com.contractiq.util.EnvLoader;
 
 import java.io.File;
+import java.util.Locale;
 
 public class AppConfig {
     public static final String APP_NAME = "ContractIQ";
@@ -44,6 +45,48 @@ public class AppConfig {
 
     public static boolean isProduction() {
         return "production".equalsIgnoreCase(EnvLoader.get("APP_ENV", "development"));
+    }
+
+    public static String getStorageProvider() {
+        return EnvLoader.get("STORAGE_PROVIDER", "local").trim().toLowerCase(Locale.ROOT);
+    }
+
+    public static boolean isLocalStorageEnabled() {
+        String provider = getStorageProvider();
+        return provider.isBlank() || provider.equals("local") || provider.equals("filesystem");
+    }
+
+    public static boolean isObjectStorageEnabled() {
+        String provider = getStorageProvider();
+        return provider.equals("object-store") || provider.equals("s3") || provider.equals("r2") || provider.equals("cloudflare-r2");
+    }
+
+    public static String getObjectStorageBucket() {
+        return EnvLoader.get("OBJECT_STORAGE_BUCKET", "");
+    }
+
+    public static String getObjectStorageEndpoint() {
+        return EnvLoader.get("OBJECT_STORAGE_ENDPOINT", "");
+    }
+
+    public static String getObjectStorageRegion() {
+        return EnvLoader.get("OBJECT_STORAGE_REGION", "auto");
+    }
+
+    public static String getObjectStorageAccessKeyId() {
+        return EnvLoader.get("OBJECT_STORAGE_ACCESS_KEY_ID", "");
+    }
+
+    public static String getObjectStorageSecretAccessKey() {
+        return EnvLoader.get("OBJECT_STORAGE_SECRET_ACCESS_KEY", "");
+    }
+
+    public static boolean isObjectStorageConfigured() {
+        return isObjectStorageEnabled()
+                && !getObjectStorageBucket().isBlank()
+                && !getObjectStorageEndpoint().isBlank()
+                && !getObjectStorageAccessKeyId().isBlank()
+                && !getObjectStorageSecretAccessKey().isBlank();
     }
 
     public static String getBasicAuthUsername() {

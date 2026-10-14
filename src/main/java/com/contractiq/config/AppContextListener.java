@@ -20,13 +20,14 @@ public class AppContextListener implements ServletContextListener {
 
         try {
             boolean dbOk = DatabaseConfig.testConnection();
-            if (dbOk) {
-                logger.info("Database connection established successfully.");
-            } else {
-                logger.warn("Database connection could not be established at startup. Please verify DB credentials.");
+            if (!dbOk) {
+                throw new IllegalStateException("Database connection could not be established at startup. Please verify DB credentials.");
             }
+            DatabaseConfig.initializeSchemaIfMissing();
+            logger.info("Database connection established successfully and schema is initialized.");
         } catch (Exception e) {
-            logger.error("Error during startup database connection verification: {}", e.getMessage());
+            logger.error("Error during startup database verification or schema initialization: {}", e.getMessage(), e);
+            throw new IllegalStateException("ContractIQ database startup validation failed.", e);
         }
         logger.info("{} initialized and ready to serve requests.", AppConfig.APP_NAME);
         logger.info("================================================================================");

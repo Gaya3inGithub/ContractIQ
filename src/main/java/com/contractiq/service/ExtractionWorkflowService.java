@@ -17,6 +17,8 @@ import com.contractiq.model.Obligation;
 import com.contractiq.pdf.ExtractedPdfContent;
 import com.contractiq.pdf.PdfExtractionService;
 import com.contractiq.pdf.PdfValidationService;
+import com.contractiq.storage.ContractStorageService;
+import com.contractiq.storage.StoredFile;
 import com.contractiq.util.DateUtil;
 import com.contractiq.util.SecurityUtil;
 import org.slf4j.Logger;
@@ -40,6 +42,7 @@ public class ExtractionWorkflowService {
     private final ContractDao contractDao;
     private final ObligationDao obligationDao;
     private final ActivityDao activityDao;
+    private final ContractStorageService storageService;
 
     public ExtractionWorkflowService() {
         this.pdfValidationService = new PdfValidationService();
@@ -48,6 +51,7 @@ public class ExtractionWorkflowService {
         this.contractDao = new ContractDao();
         this.obligationDao = new ObligationDao();
         this.activityDao = new ActivityDao();
+        this.storageService = new ContractStorageService();
     }
 
     public ExtractionWorkflowService(PdfValidationService pdfValidationService,
@@ -62,6 +66,23 @@ public class ExtractionWorkflowService {
         this.contractDao = contractDao;
         this.obligationDao = obligationDao;
         this.activityDao = activityDao;
+        this.storageService = new ContractStorageService();
+    }
+
+    public ExtractionWorkflowService(PdfValidationService pdfValidationService,
+                                   PdfExtractionService pdfExtractionService,
+                                   LlmService llmService,
+                                   ContractDao contractDao,
+                                   ObligationDao obligationDao,
+                                   ActivityDao activityDao,
+                                   ContractStorageService storageService) {
+        this.pdfValidationService = pdfValidationService;
+        this.pdfExtractionService = pdfExtractionService;
+        this.llmService = llmService;
+        this.contractDao = contractDao;
+        this.obligationDao = obligationDao;
+        this.activityDao = activityDao;
+        this.storageService = storageService;
     }
 
     /**
@@ -71,23 +92,27 @@ public class ExtractionWorkflowService {
     public Contract processContractUpload(String originalFileName, InputStream fileStream, String uploaderIp) throws SQLException {
         long startTime = System.currentTimeMillis();
         String safeOriginalName = SecurityUtil.sanitizeFileName(originalFileName);
-        String storageFileName = SecurityUtil.generateStorageFileName(safeOriginalName);
-        File targetFile = new File(AppConfig.getUploadDir(), storageFileName);
+        String storageKey = null;
+        File targetFile = null;
         boolean completed = false;
 
-        logger.info("Starting ingestion workflow for '{}' -> '{}'", originalFileName, targetFile.getAbsolutePath());
-
         try {
-            // Step 1: Save the stream. Validation follows before the file is
-            // read back for hashing, so an oversized payload is never retained.
+            StoredFile storedFile;
             try {
-                Files.copy(fileStream, targetFile.toPath());
+                storedFile = storageService.saveUploadedFile(safeOriginalName, fileStream);
             } catch (Exception e) {
-                logger.error("Failed to write uploaded PDF file to disk: {}", e.getMessage());
                 throw new StorageException("Failed to save uploaded contract file.", e);
             }
+            storageKey = storedFile.getStorageKey();
+            try {
+                targetFile = storageService.materializeToTempFile(storageKey, safeOriginalName);
+            } catch (Exception e) {
+                throw new StorageException("Failed to prepare the uploaded PDF for validation and extraction.", e);
+            }
 
-            // Step 2: Validate PDF format, size, and magic bytes
+            logger.info("Starting ingestion workflow for '{}' -> '{}'", originalFileName, storageKey);
+
+            // Step 1: Validate PDF format, size, and magic bytes
             pdfValidationService.validatePdfFile(targetFile, originalFileName);
             byte[] fileBytes;
             try {
@@ -97,17 +122,17 @@ public class ExtractionWorkflowService {
             }
             String sha256 = SecurityUtil.computeSha256(fileBytes);
 
-            // Step 3: Extract text via Apache PDFBox
+            // Step 2: Extract text via Apache PDFBox
             ExtractedPdfContent pdfContent = pdfExtractionService.extractText(targetFile);
 
-            // Step 4: AI Analysis via LLM Service (or heuristic fallback)
+            // Step 3: AI Analysis via LLM Service (or heuristic fallback)
             LlmExtractionResult aiResult = llmService.extractContractObligations(safeOriginalName, pdfContent);
             ContractExtractionDto extractedDto = aiResult.getContractData();
 
-        // Step 5: Convert extraction DTO to Contract entity
+        // Step 4: Convert extraction DTO to Contract entity
         Contract contract = new Contract();
         contract.setFileName(safeOriginalName);
-        contract.setStoredFilePath(targetFile.getPath());
+        contract.setStoredFilePath(storageKey);
         contract.setFileSizeBytes((long) fileBytes.length);
         contract.setFileHashSha256(sha256);
 
@@ -188,10 +213,21 @@ public class ExtractionWorkflowService {
             return contract;
         } finally {
             if (!completed) {
+                if (storageKey != null) {
+                    storageService.deleteIfExists(storageKey);
+                }
+                if (targetFile != null && targetFile.exists() && !targetFile.getAbsolutePath().equals(storageKey)) {
+                    try {
+                        Files.deleteIfExists(targetFile.toPath());
+                    } catch (Exception cleanupError) {
+                        logger.warn("Could not remove incomplete upload '{}': {}", targetFile.getName(), cleanupError.getMessage());
+                    }
+                }
+            } else if (targetFile != null && !targetFile.getAbsolutePath().equals(storageKey)) {
                 try {
                     Files.deleteIfExists(targetFile.toPath());
                 } catch (Exception cleanupError) {
-                    logger.warn("Could not remove incomplete upload '{}': {}", targetFile.getName(), cleanupError.getMessage());
+                    logger.debug("Could not remove temporary extracted file '{}': {}", targetFile.getName(), cleanupError.getMessage());
                 }
             }
         }

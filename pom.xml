@@ -24,6 +24,7 @@
         <jackson.version>2.17.2</jackson.version>
         <slf4j.version>2.0.13</slf4j.version>
         <logback.version>1.5.6</logback.version>
+        <aws.sdk.version>2.25.31</aws.sdk.version>
         <junit.jupiter.version>5.10.2</junit.jupiter.version>
         <mockito.version>5.11.0</mockito.version>
         <h2.version>2.2.224</h2.version>
@@ -69,6 +70,13 @@
             <groupId>com.fasterxml.jackson.datatype</groupId>
             <artifactId>jackson-datatype-jsr310</artifactId>
             <version>${jackson.version}</version>
+        </dependency>
+
+        <!-- S3-compatible object storage for Cloudflare R2 and compatible providers -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+            <version>${aws.sdk.version}</version>
         </dependency>
 
         <!-- Logging: SLF4J + Logback -->

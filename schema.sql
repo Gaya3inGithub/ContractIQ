@@ -1,12 +1,6 @@
 -- ContractIQ schema for MySQL 8+
 -- This script is safe to run repeatedly: it never drops tables or inserts demo
--- records. It creates an empty database for a clean local installation.
-
-CREATE DATABASE IF NOT EXISTS contractiq_db
-CHARACTER SET utf8mb4
-COLLATE utf8mb4_unicode_ci;
-
-USE contractiq_db;
+-- records. It creates the required tables in the currently selected database.
 
 CREATE TABLE IF NOT EXISTS contracts (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
