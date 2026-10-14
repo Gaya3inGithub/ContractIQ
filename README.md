@@ -225,6 +225,9 @@ DB_PASSWORD=<secret>
 DB_POOL_SIZE=3
 # Vercel's 4.5 MB request-body limit includes multipart overhead.
 MAX_FILE_SIZE_MB=4
+APP_ENV=production
+APP_BASIC_AUTH_USERNAME=<reviewer-login-name>
+APP_BASIC_AUTH_PASSWORD=<secret>
 LLM_API_KEY=
 LLM_API_URL=https://api.openai.com/v1/chat/completions
 LLM_MODEL=gpt-4o-mini
@@ -239,7 +242,7 @@ Important deployment constraints:
 * PDF extraction is synchronous. Keep demo PDFs small and text-based. Vercel's current container/function duration depends on the plan and configuration, so test the real upload path on the selected plan before sharing a deployment.
 * Vercel rejects request bodies larger than 4.5 MB before Tomcat receives them. `Dockerfile.vercel` therefore defaults the application upload limit to 4 MB; do not advertise the local 15 MB limit for this deployment.
 * Vercel Hobby is for personal, non-commercial use and has finite included compute. Treat it as a demo tier, not permanent hosting. Review the current [Docker guidance](https://vercel.com/kb/docker), [Hobby limits](https://vercel.com/docs/plans/hobby), and [platform limits](https://vercel.com/docs/limits) before deployment.
-* The application has no authentication. Do not expose contract upload and reviewer endpoints publicly with sensitive data. Use deployment protection or a separate authentication layer before sharing a URL.
+* In production, ContractIQ now fails closed until `APP_BASIC_AUTH_USERNAME` and `APP_BASIC_AUTH_PASSWORD` are configured. The built-in HTTP Basic authentication protects every route, including contract upload and reviewer actions. Do not place either value in source control. Vercel Deployment Protection is an optional additional layer.
 
 To deploy, import the intended Git repository into Vercel, confirm it selects `Dockerfile.vercel`, set the variables above in the Vercel dashboard, then deploy. Test the returned URL's `/api/health`, upload, review, and persistence behavior before sharing it.
 

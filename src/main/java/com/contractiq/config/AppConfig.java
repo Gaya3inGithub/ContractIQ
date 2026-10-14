@@ -42,6 +42,22 @@ public class AppConfig {
         return EnvLoader.getBoolean("DEMO_MODE", false);
     }
 
+    public static boolean isProduction() {
+        return "production".equalsIgnoreCase(EnvLoader.get("APP_ENV", "development"));
+    }
+
+    public static String getBasicAuthUsername() {
+        return EnvLoader.get("APP_BASIC_AUTH_USERNAME", "");
+    }
+
+    public static String getBasicAuthPassword() {
+        return EnvLoader.get("APP_BASIC_AUTH_PASSWORD", "");
+    }
+
+    public static boolean isBasicAuthConfigured() {
+        return !getBasicAuthUsername().isBlank() && !getBasicAuthPassword().isBlank();
+    }
+
     public static boolean isLlmConfigured() {
         String key = getLlmApiKey();
         return key != null && !key.trim().isEmpty() && !key.contains("your_");

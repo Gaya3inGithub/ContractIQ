@@ -18,6 +18,7 @@ ENV UPLOAD_DIR=/tmp/contractiq-uploads
 # Vercel rejects request bodies above 4.5 MB before they reach Tomcat. Keep
 # the application limit below that platform limit (including multipart overhead).
 ENV MAX_FILE_SIZE_MB=4
+ENV APP_ENV=production
 ENV PORT=80
 EXPOSE 80
 
