@@ -98,7 +98,7 @@ public class ObligationServlet extends BaseServlet {
 
                 ApprovalDecisionRequest decisionReq = readJsonBody(req, ApprovalDecisionRequest.class);
                 if (decisionReq == null) {
-                    decisionReq = new ApprovalDecisionRequest("Legal Counsel", "Decision executed.");
+                throw new ValidationException("A reviewer name is required for an approval or rejection decision.");
                 }
 
                 if ("approve".equals(action)) {

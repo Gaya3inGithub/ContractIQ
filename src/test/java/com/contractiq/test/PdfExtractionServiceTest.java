@@ -2,6 +2,9 @@ package com.contractiq.test;
 
 import com.contractiq.pdf.ExtractedPdfContent;
 import com.contractiq.pdf.PdfExtractionService;
+import com.contractiq.exception.ValidationException;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -39,5 +42,18 @@ class PdfExtractionServiceTest {
 
         assertNotNull(content.getPageTexts().get(1));
         assertTrue(content.getPageTexts().get(1).contains("Payment Terms"));
+    }
+
+    @Test
+    void testImageOnlyPdfIsRejectedWhenOcrIsUnavailable(@TempDir File tempDir) throws IOException {
+        File pdf = new File(tempDir, "scanned.pdf");
+        try (PDDocument document = new PDDocument()) {
+            document.addPage(new PDPage());
+            document.save(pdf);
+        }
+
+        ValidationException exception = assertThrows(ValidationException.class, () -> extractionService.extractText(pdf));
+        assertTrue(exception.getMessage().contains("no extractable text"));
+        assertTrue(exception.getMessage().contains("OCR"));
     }
 }

@@ -59,7 +59,11 @@ public abstract class BaseServlet extends HttpServlet {
         if (body.trim().isEmpty()) {
             return null;
         }
-        return JsonUtil.fromJson(body, clazz);
+        try {
+            return JsonUtil.fromJson(body, clazz);
+        } catch (RuntimeException e) {
+            throw new ValidationException("Request body must contain valid JSON.");
+        }
     }
 
     protected void handleException(HttpServletResponse resp, Exception e) throws IOException {
@@ -71,7 +75,7 @@ public abstract class BaseServlet extends HttpServlet {
             sendError(resp, HttpServletResponse.SC_NOT_FOUND, e.getMessage());
         } else {
             logger.error("Internal server error: {}", e.getMessage(), e);
-            sendError(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "An internal server error occurred: " + e.getMessage());
+            sendError(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "An internal server error occurred. Please try again or check the server logs.");
         }
     }
 }

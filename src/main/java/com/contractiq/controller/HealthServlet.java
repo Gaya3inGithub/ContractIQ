@@ -26,8 +26,7 @@ public class HealthServlet extends BaseServlet {
 
         Map<String, Object> components = new HashMap<>();
         components.put("database", dbOk ? "CONNECTED" : "DISCONNECTED");
-        components.put("llmEngine", AppConfig.isLlmConfigured() ? "LIVE_LLM (" + AppConfig.getLlmModel() + ")" : "OFFLINE_HEURISTIC_MODE");
-        components.put("storagePath", AppConfig.getUploadDir());
+        components.put("llmEngine", AppConfig.isLlmConfigured() ? "LLM_CONFIGURED (" + AppConfig.getLlmModel() + ")" : "OFFLINE_HEURISTIC_MODE");
 
         health.put("components", components);
         health.put("timestamp", LocalDateTime.now().toString());

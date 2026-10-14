@@ -38,6 +38,9 @@ class DateUtilTest {
         assertNull(DateUtil.parseSafe("undefined"));
         assertNull(DateUtil.parseSafe("some-arbitrary-string"));
         assertNull(DateUtil.parseSafe("2025-99-99"));
+        assertNull(DateUtil.parseSafe("2025-02-30"));
+        assertNull(DateUtil.parseSafe("01/02/2025"));
+        assertNull(DateUtil.parseSafe("10-11-2025"));
     }
 
     @Test

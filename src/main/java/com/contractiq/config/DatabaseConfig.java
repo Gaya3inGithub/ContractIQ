@@ -29,7 +29,7 @@ public class DatabaseConfig {
         if (dataSource == null) {
             String dbUrl = EnvLoader.get("DB_URL", "jdbc:mysql://localhost:3306/contractiq_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=UTF-8");
             String dbUser = EnvLoader.get("DB_USER", "root");
-            String dbPassword = EnvLoader.get("DB_PASSWORD", "accord");
+            String dbPassword = EnvLoader.get("DB_PASSWORD", "");
             int poolSize = EnvLoader.getInt("DB_POOL_SIZE", 10);
 
             logger.info("Initializing HikariCP connection pool for: {}", dbUrl);

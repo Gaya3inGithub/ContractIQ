@@ -17,9 +17,12 @@ import org.slf4j.LoggerFactory;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 
 public class ObligationService {
     private static final Logger logger = LoggerFactory.getLogger(ObligationService.class);
+    private static final Set<String> ALLOWED_FREQUENCIES = Set.of("ONE_TIME", "MONTHLY", "QUARTERLY", "ANNUALLY", "AS_INCURRED");
+    private static final Set<String> ALLOWED_CATEGORIES = Set.of("PAYMENT", "COMPLIANCE", "DELIVERY", "REPORTING", "TERMINATION", "CONFIDENTIALITY", "OTHER");
 
     private final ObligationDao obligationDao;
     private final ContractDao contractDao;
@@ -63,13 +66,18 @@ public class ObligationService {
             o.setResponsibleParty(req.getResponsibleParty().trim());
         }
         if (req.getDeadlineDate() != null) {
-            o.setDeadlineDate(DateUtil.parseSafe(req.getDeadlineDate()));
+            String submittedDate = req.getDeadlineDate().trim();
+            LocalDate deadline = submittedDate.isEmpty() ? null : DateUtil.parseSafe(submittedDate);
+            if (!submittedDate.isEmpty() && deadline == null) {
+                throw new ValidationException("Deadline date must be an unambiguous, valid date.");
+            }
+            o.setDeadlineDate(deadline);
         }
         if (req.getFrequency() != null) {
-            o.setFrequency(req.getFrequency().trim().toUpperCase());
+            o.setFrequency(validateEnum(req.getFrequency(), ALLOWED_FREQUENCIES, "frequency"));
         }
         if (req.getCategory() != null) {
-            o.setCategory(req.getCategory().trim().toUpperCase());
+            o.setCategory(validateEnum(req.getCategory(), ALLOWED_CATEGORIES, "category"));
         }
         if (req.getReviewComment() != null) {
             o.setReviewComment(req.getReviewComment().trim());
@@ -85,16 +93,18 @@ public class ObligationService {
 
     /**
      * MANDATORY HUMAN APPROVAL:
-     * Enforces human review by explicitly moving status from PENDING/REJECTED to APPROVED.
+     * Enforces human review by moving a PENDING suggestion to APPROVED once.
      */
     public Obligation approveObligation(Long id, ApprovalDecisionRequest req) throws SQLException {
         Obligation o = getObligation(id);
 
-        String reviewer = (req != null && req.getReviewerName() != null && !req.getReviewerName().trim().isEmpty())
-                ? req.getReviewerName().trim() : "Legal Reviewer";
+        requirePendingDecision(o);
+        String reviewer = requireReviewerName(req);
         String comment = (req != null && req.getComment() != null) ? req.getComment().trim() : "Approved by human reviewer.";
 
-        obligationDao.updateApprovalStatus(id, "APPROVED", reviewer, comment);
+        if (!obligationDao.updatePendingApprovalStatus(id, "APPROVED", reviewer, comment)) {
+            throw new ValidationException("This obligation has already been reviewed. Refresh the page before taking another action.");
+        }
         o.setApprovalStatus("APPROVED");
         o.setApprovedBy(reviewer);
         o.setReviewComment(comment);
@@ -110,16 +120,18 @@ public class ObligationService {
 
     /**
      * MANDATORY HUMAN REJECTION:
-     * Moves obligation status to REJECTED with mandatory reviewer tracking.
+     * Moves a PENDING obligation to REJECTED with mandatory reviewer tracking.
      */
     public Obligation rejectObligation(Long id, ApprovalDecisionRequest req) throws SQLException {
         Obligation o = getObligation(id);
 
-        String reviewer = (req != null && req.getReviewerName() != null && !req.getReviewerName().trim().isEmpty())
-                ? req.getReviewerName().trim() : "Legal Reviewer";
+        requirePendingDecision(o);
+        String reviewer = requireReviewerName(req);
         String comment = (req != null && req.getComment() != null) ? req.getComment().trim() : "Rejected during human review.";
 
-        obligationDao.updateApprovalStatus(id, "REJECTED", reviewer, comment);
+        if (!obligationDao.updatePendingApprovalStatus(id, "REJECTED", reviewer, comment)) {
+            throw new ValidationException("This obligation has already been reviewed. Refresh the page before taking another action.");
+        }
         o.setApprovalStatus("REJECTED");
         o.setApprovedBy(reviewer);
         o.setReviewComment(comment);
@@ -157,5 +169,26 @@ public class ObligationService {
 
         String note = String.format("Obligation decisions: %d Approved, %d Rejected, %d Pending", approvedCount, rejectedCount, pendingCount);
         contractDao.updateReviewStatus(contractId, newStatus, note);
+    }
+
+    private void requirePendingDecision(Obligation obligation) {
+        if (!"PENDING".equalsIgnoreCase(obligation.getApprovalStatus())) {
+            throw new ValidationException("Only pending obligations can be approved or rejected. This decision cannot be changed through the review API.");
+        }
+    }
+
+    private String requireReviewerName(ApprovalDecisionRequest request) {
+        if (request == null || request.getReviewerName() == null || request.getReviewerName().trim().isEmpty()) {
+            throw new ValidationException("Reviewer name is required for an approval or rejection decision.");
+        }
+        return request.getReviewerName().trim();
+    }
+
+    private String validateEnum(String value, Set<String> allowedValues, String fieldName) {
+        String normalised = value.trim().toUpperCase();
+        if (!allowedValues.contains(normalised)) {
+            throw new ValidationException("Unsupported obligation " + fieldName + ".");
+        }
+        return normalised;
     }
 }

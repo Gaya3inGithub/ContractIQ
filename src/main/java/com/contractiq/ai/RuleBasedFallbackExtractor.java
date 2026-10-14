@@ -86,10 +86,10 @@ public class RuleBasedFallbackExtractor {
     }
 
     private String[] extractParties(String text) {
-        String p1 = "Party A";
-        String p2 = "Party B";
+        String p1 = null;
+        String p2 = null;
 
-        Pattern p = Pattern.compile("(?i)(?:by and between|between)\\s+([A-Z][A-Za-z0-9&.\\s]{2,50}?)\\s+(?:and|with)\\s+([A-Z][A-Za-z0-9&.\\s]{2,50}?)(?:[.\\n\\r]|\\s*\\(|\\s*,\\s*an?|$)");
+        Pattern p = Pattern.compile("(?i:(?:by and between|between))\\s+([A-Z][A-Za-z0-9&.\\s]{2,50}?)\\s+(?i:(?:and|with))\\s+([A-Z][A-Za-z0-9&.\\s]{2,50}?)(?:[.\\n\\r]|\\s*\\(|\\s*,\\s*an?|$)");
         Matcher m = p.matcher(text);
         if (m.find()) {
             p1 = cleanParty(m.group(1));
@@ -153,9 +153,9 @@ public class RuleBasedFallbackExtractor {
             ObligationExtractionDto o = new ObligationExtractionDto();
             o.setObligationTitle("Contractual Payment & Fee Schedule");
             o.setDescription(mPay.group(0).trim());
-            o.setResponsibleParty(p2 != null ? p2 : "Customer / Client");
+            o.setResponsibleParty(p2);
             o.setCategory("PAYMENT");
-            o.setFrequency("MONTHLY");
+            o.setFrequency(extractFrequency(mPay.group(0)));
             o.setConfidence(new BigDecimal("0.90"));
             o.setSourceExcerpt(mPay.group(0).trim());
             o.setPageNumber(findPageForText(pdfContent, mPay.group(0)));
@@ -169,9 +169,9 @@ public class RuleBasedFallbackExtractor {
             ObligationExtractionDto o = new ObligationExtractionDto();
             o.setObligationTitle("Notice of Termination or Non-Renewal");
             o.setDescription(mRen.group(0).trim());
-            o.setResponsibleParty(p2 != null ? p2 : "Either Party");
+            o.setResponsibleParty(p2);
             o.setCategory("TERMINATION");
-            o.setFrequency("ONE_TIME");
+            o.setFrequency(extractFrequency(mRen.group(0)));
             o.setConfidence(new BigDecimal("0.88"));
             o.setSourceExcerpt(mRen.group(0).trim());
             o.setPageNumber(findPageForText(pdfContent, mRen.group(0)));
@@ -185,30 +185,24 @@ public class RuleBasedFallbackExtractor {
             ObligationExtractionDto o = new ObligationExtractionDto();
             o.setObligationTitle("Regulatory & Security Compliance Reporting");
             o.setDescription(mComp.group(0).trim());
-            o.setResponsibleParty(p1 != null ? p1 : "Service Provider");
+            o.setResponsibleParty(p1);
             o.setCategory("COMPLIANCE");
-            o.setFrequency("ANNUALLY");
+            o.setFrequency(extractFrequency(mComp.group(0)));
             o.setConfidence(new BigDecimal("0.85"));
             o.setSourceExcerpt(mComp.group(0).trim());
             o.setPageNumber(findPageForText(pdfContent, mComp.group(0)));
             list.add(o);
         }
 
-        // If no explicit clauses found, add general obligation
-        if (list.isEmpty()) {
-            ObligationExtractionDto o = new ObligationExtractionDto();
-            o.setObligationTitle("Standard Contractual Performance Obligation");
-            o.setDescription("Perform duties, services, or delivery in accordance with the contract specifications.");
-            o.setResponsibleParty(p1 != null ? p1 : "Contractor");
-            o.setCategory("DELIVERY");
-            o.setFrequency("ONE_TIME");
-            o.setConfidence(new BigDecimal("0.75"));
-            o.setSourceExcerpt("Extracted from introductory provisions.");
-            o.setPageNumber(1);
-            list.add(o);
-        }
-
         return list;
+    }
+
+    private String extractFrequency(String clause) {
+        String lower = clause.toLowerCase();
+        if (lower.contains("monthly")) return "MONTHLY";
+        if (lower.contains("quarterly")) return "QUARTERLY";
+        if (lower.contains("annual") || lower.contains("annually")) return "ANNUALLY";
+        return null;
     }
 
     private int findPageForText(ExtractedPdfContent content, String snippet) {

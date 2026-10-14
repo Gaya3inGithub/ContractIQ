@@ -1,7 +1,7 @@
 package com.contractiq.dto;
 
 public class ApprovalDecisionRequest {
-    private String reviewerName = "Legal Counsel";
+    private String reviewerName;
     private String comment;
 
     public ApprovalDecisionRequest() {}

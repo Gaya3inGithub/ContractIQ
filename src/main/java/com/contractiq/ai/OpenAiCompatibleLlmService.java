@@ -4,7 +4,6 @@ import com.contractiq.config.AppConfig;
 import com.contractiq.dto.ContractExtractionDto;
 import com.contractiq.pdf.ExtractedPdfContent;
 import com.contractiq.util.JsonUtil;
-import com.contractiq.util.SecurityUtil;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,8 +62,9 @@ public class OpenAiCompatibleLlmService implements LlmService {
         String model = AppConfig.getLlmModel();
         int timeoutSeconds = AppConfig.getLlmTimeoutSeconds();
 
-        logger.info("Initiating LLM contract analysis via {} [Model: {}] with API Key: {}",
-                apiUrl, model, SecurityUtil.redactApiKey(apiKey));
+        // Do not log credentials, request payloads, or provider URLs. Provider
+        // URLs can contain query-string credentials in some deployments.
+        logger.info("Initiating LLM contract analysis [Model: {}].", model);
 
         String prompt = buildPrompt(fileName, pdfContent);
 
@@ -92,17 +92,19 @@ public class OpenAiCompatibleLlmService implements LlmService {
                 return new LlmExtractionResult(res.getContractData(), "Fallback after HTTP 429 Rate Limit", false,
                         System.currentTimeMillis() - startTime, "API Rate Limit reached. Heuristic extractor served as fallback.");
             } else {
-                logger.error("LLM Provider returned HTTP error status {}. Response: {}", statusCode, response.body());
+                logger.error("LLM Provider returned HTTP error status {}. Falling back to the heuristic extractor.", statusCode);
                 LlmExtractionResult res = fallbackExtractor.extract(fileName, pdfContent);
                 return new LlmExtractionResult(res.getContractData(), "Fallback after HTTP " + statusCode, false,
                         System.currentTimeMillis() - startTime, "API returned HTTP " + statusCode + ". Fallback engine used.");
             }
 
         } catch (Exception e) {
-            logger.error("Exception during LLM contract extraction: {}. Falling back to rule engine.", e.getMessage());
+            logger.error("LLM contract extraction failed ({}). Falling back to rule engine.",
+                    e.getClass().getSimpleName());
             LlmExtractionResult res = fallbackExtractor.extract(fileName, pdfContent);
             return new LlmExtractionResult(res.getContractData(), "Fallback after error: " + e.getClass().getSimpleName(),
-                    false, System.currentTimeMillis() - startTime, "Error during API call: " + e.getMessage() + ". Fallback engine used.");
+                    false, System.currentTimeMillis() - startTime,
+                    "The LLM provider request failed. The heuristic extractor was used instead.");
         }
     }
 
@@ -111,7 +113,7 @@ public class OpenAiCompatibleLlmService implements LlmService {
             return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
         } catch (IOException e) {
             if (retriesLeft > 0) {
-                logger.warn("Transient network error during LLM request. Retrying once: {}", e.getMessage());
+                logger.warn("Transient network error during LLM request. Retrying once.");
                 Thread.sleep(1000);
                 return sendWithRetry(request, retriesLeft - 1);
             }
@@ -191,8 +193,8 @@ public class OpenAiCompatibleLlmService implements LlmService {
             }
             throw new RuntimeException("No choices returned in LLM response.");
         } catch (Exception e) {
-            logger.error("Failed to parse LLM JSON response: {}", e.getMessage());
-            throw new RuntimeException("Malformed response from LLM: " + e.getMessage(), e);
+            logger.error("Failed to parse the LLM JSON response.");
+            throw new RuntimeException("Malformed response from LLM.", e);
         }
     }
 

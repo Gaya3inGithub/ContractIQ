@@ -1,6 +1,7 @@
 package com.contractiq.controller;
 
 import com.contractiq.model.Contract;
+import com.contractiq.exception.ValidationException;
 import com.contractiq.service.ContractService;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -30,7 +31,12 @@ public class RenewalServlet extends BaseServlet {
             if (limitParam != null) {
                 try {
                     limit = Integer.parseInt(limitParam.trim());
-                } catch (NumberFormatException ignored) {}
+                } catch (NumberFormatException ignored) {
+                    throw new ValidationException("Renewal limit must be a whole number.");
+                }
+            }
+            if (limit < 1 || limit > 100) {
+                throw new ValidationException("Renewal limit must be between 1 and 100.");
             }
 
             List<Contract> renewals = contractService.getUpcomingRenewals(limit);

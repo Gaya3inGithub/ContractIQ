@@ -39,7 +39,7 @@ public class PdfExtractionService {
             String fullText = stripper.getText(document);
             if (fullText == null || fullText.trim().isEmpty()) {
                 logger.warn("Extracted text from PDF is empty. Document might be image-scanned.");
-                fullText = "[Scanned or image-based PDF. Text could not be parsed via direct text stripping.]";
+                throw new ValidationException("This PDF has no extractable text. Scanned or image-only PDFs require OCR, which is not available in this deployment.");
             } else if (fullText.length() > MAX_EXTRACTED_CHARS) {
                 logger.info("Truncating extracted text from {} chars to {} chars for safety.", fullText.length(), MAX_EXTRACTED_CHARS);
                 fullText = fullText.substring(0, MAX_EXTRACTED_CHARS);

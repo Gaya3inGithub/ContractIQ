@@ -14,9 +14,9 @@ public class AppContextListener implements ServletContextListener {
     public void contextInitialized(ServletContextEvent sce) {
         logger.info("================================================================================");
         logger.info("Initializing {} v{}", AppConfig.APP_NAME, AppConfig.APP_VERSION);
-        logger.info("Upload Directory configured at: {}", AppConfig.getUploadDir());
-        logger.info("LLM Provider configured: [Configured: {}, URL: {}, Model: {}]",
-                AppConfig.isLlmConfigured(), AppConfig.getLlmApiUrl(), AppConfig.getLlmModel());
+        logger.info("Upload storage is configured.");
+        logger.info("LLM Provider configured: [Configured: {}, Model: {}]",
+                AppConfig.isLlmConfigured(), AppConfig.getLlmModel());
 
         try {
             boolean dbOk = DatabaseConfig.testConnection();

@@ -1,17 +1,36 @@
 package com.contractiq.test;
 
 import com.contractiq.ai.LlmExtractionResult;
+import com.contractiq.ai.OpenAiCompatibleLlmService;
 import com.contractiq.ai.RuleBasedFallbackExtractor;
 import com.contractiq.dto.ContractExtractionDto;
 import com.contractiq.pdf.ExtractedPdfContent;
+import com.contractiq.util.EnvLoader;
 import com.contractiq.util.JsonUtil;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Field;
+import java.net.http.HttpClient;
+import java.net.http.HttpResponse;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
 
 class LlmExtractionParsingTest {
+
+    private Map<String, String> originalEnvironment;
+
+    @AfterEach
+    void restoreEnvironment() throws Exception {
+        if (originalEnvironment != null) {
+            environment().clear();
+            environment().putAll(originalEnvironment);
+        }
+    }
 
     @Test
     void testParseStructuredLlmJson() {
@@ -84,5 +103,53 @@ class LlmExtractionParsingTest {
         assertTrue(data.getAutoRenewal());
         assertEquals(60, data.getRenewalNoticePeriodDays());
         assertFalse(data.getObligations().isEmpty());
+    }
+
+    @Test
+    void testRuleBasedFallbackDoesNotInventObligationsWhenNoEvidenceExists() {
+        String syntheticText = "This document records a meeting between the parties and contains no contractual duties.";
+        ExtractedPdfContent content = new ExtractedPdfContent(syntheticText, 1, Map.of(1, syntheticText));
+
+        ContractExtractionDto data = new RuleBasedFallbackExtractor().extract("notes.pdf", content).getContractData();
+
+        assertNull(data.getPartyFirst());
+        assertNull(data.getPartySecond());
+        assertTrue(data.getObligations().isEmpty(), "Heuristic mode must not fabricate a generic obligation.");
+    }
+
+    @Test
+    void testProviderHttpErrorUsesClearlyLabelledHeuristicFallback() throws Exception {
+        Map<String, String> environment = environment();
+        originalEnvironment = new HashMap<>(environment);
+        environment.put("LLM_API_KEY", "test-key");
+        environment.put("LLM_API_URL", "https://llm.example.test/v1/chat/completions");
+        environment.put("LLM_MODEL", "test-model");
+        environment.put("DEMO_MODE", "false");
+
+        HttpClient client = mock(HttpClient.class);
+        @SuppressWarnings("unchecked")
+        HttpResponse<String> response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(500);
+        when(response.body()).thenReturn("provider failure");
+        when(client.send(any(), any(HttpResponse.BodyHandler.class))).thenReturn(response);
+
+        String contractText = "Customer shall pay quarterly invoices within 30 days.";
+        ExtractedPdfContent content = new ExtractedPdfContent(contractText, 1, Map.of(1, contractText));
+        OpenAiCompatibleLlmService service = new OpenAiCompatibleLlmService(client, new RuleBasedFallbackExtractor());
+
+        LlmExtractionResult result = service.extractContractObligations("sample.pdf", content);
+
+        assertFalse(result.isRealLlm());
+        assertTrue(result.getModelUsed().contains("Fallback after HTTP 500"));
+        assertTrue(result.getContractData().getObligations().stream()
+                .allMatch(obligation -> obligation.getSourceExcerpt().contains("shall pay")));
+        verify(client).send(any(), any(HttpResponse.BodyHandler.class));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, String> environment() throws Exception {
+        Field field = EnvLoader.class.getDeclaredField("envMap");
+        field.setAccessible(true);
+        return (Map<String, String>) field.get(null);
     }
 }

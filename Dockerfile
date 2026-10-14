@@ -24,17 +24,17 @@ COPY --from=build /app/target/ContractIQ.war /usr/local/tomcat/webapps/ROOT.war
 # Create storage directory for uploads
 RUN mkdir -p /app/uploads && chmod 777 /app/uploads
 
-# Set default environment variables
+# Runtime configuration. Supply DB_PASSWORD only through the runtime environment.
 ENV DB_URL=jdbc:mysql://db:3306/contractiq_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=UTF-8
 ENV DB_USER=root
-ENV DB_PASSWORD=accord
 ENV UPLOAD_DIR=/app/uploads
 ENV MAX_FILE_SIZE_MB=15
 ENV LLM_API_KEY=""
 ENV LLM_API_URL="https://api.openai.com/v1/chat/completions"
 ENV LLM_MODEL="gpt-4o-mini"
 ENV DEMO_MODE=false
+ENV PORT=8080
 
 EXPOSE 8080
 
-CMD ["catalina.sh", "run"]
+CMD ["sh", "-c", "sed -i \"s/port=\\\"8080\\\"/port=\\\"${PORT}\\\"/\" /usr/local/tomcat/conf/server.xml && exec catalina.sh run"]

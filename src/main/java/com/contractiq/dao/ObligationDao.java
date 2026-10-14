@@ -175,14 +175,18 @@ public class ObligationDao {
         }
     }
 
-    public void updateApprovalStatus(Long id, String status, String approvedBy, String comment) throws SQLException {
+    /**
+     * Applies a human decision only once. The PENDING predicate keeps two
+     * concurrent reviewer requests from overwriting one another.
+     */
+    public boolean updatePendingApprovalStatus(Long id, String status, String approvedBy, String comment) throws SQLException {
         String sql = """
             UPDATE obligations SET
                 approval_status = ?,
                 approved_by = ?,
                 review_comment = ?,
                 reviewed_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            WHERE id = ? AND approval_status = ?
         """;
 
         try (Connection conn = DatabaseConfig.getConnection();
@@ -191,8 +195,9 @@ public class ObligationDao {
             ps.setString(2, approvedBy);
             ps.setString(3, comment);
             ps.setLong(4, id);
+            ps.setString(5, "PENDING");
 
-            ps.executeUpdate();
+            return ps.executeUpdate() == 1;
         }
     }
 
@@ -257,7 +262,7 @@ public class ObligationDao {
         ps.setString(3, o.getDescription());
         ps.setString(4, o.getResponsibleParty());
         ps.setObject(5, o.getDeadlineDate());
-        ps.setString(6, o.getFrequency() != null ? o.getFrequency() : "ONE_TIME");
+        ps.setString(6, o.getFrequency());
         ps.setString(7, o.getCategory() != null ? o.getCategory() : "OTHER");
         ps.setString(8, o.getSourceExcerpt());
         ps.setObject(9, o.getPageNumber() != null ? o.getPageNumber() : 1);

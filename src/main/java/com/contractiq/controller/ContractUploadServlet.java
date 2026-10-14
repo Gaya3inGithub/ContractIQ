@@ -18,8 +18,8 @@ import java.io.InputStream;
 @WebServlet(name = "ContractUploadServlet", urlPatterns = {"/api/contracts/upload"})
 @MultipartConfig(
         fileSizeThreshold = 1024 * 1024 * 2, // 2MB memory threshold
-        maxFileSize = 1024 * 1024 * 20,      // 20MB max file size
-        maxRequestSize = 1024 * 1024 * 25    // 25MB max request size
+        maxFileSize = 1024 * 1024 * 15,      // Must match the documented default application limit.
+        maxRequestSize = 1024 * 1024 * 16    // Allows multipart overhead for one 15MB PDF.
 )
 public class ContractUploadServlet extends BaseServlet {
     private static final Logger logger = LoggerFactory.getLogger(ContractUploadServlet.class);
@@ -55,6 +55,11 @@ public class ContractUploadServlet extends BaseServlet {
                 sendCreated(resp, "Contract uploaded and analyzed successfully. Pending human review.", savedContract);
             }
 
+        } catch (IllegalStateException e) {
+            // Tomcat raises IllegalStateException before getPart() returns if
+            // the multipart request exceeds the annotated request/file limit.
+            sendError(resp, HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE,
+                    "Uploaded file exceeds the 15 MB limit.");
         } catch (Exception e) {
             handleException(resp, e);
         }

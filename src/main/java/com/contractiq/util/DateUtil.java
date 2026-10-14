@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.time.format.ResolverStyle;
 import java.util.List;
 
 public class DateUtil {
@@ -13,11 +14,11 @@ public class DateUtil {
 
     private static final List<DateTimeFormatter> FORMATTERS = List.of(
             DateTimeFormatter.ISO_LOCAL_DATE,                    // 2025-01-15
-            DateTimeFormatter.ofPattern("yyyy/MM/dd"),           // 2025/01/15
-            DateTimeFormatter.ofPattern("MM/dd/yyyy"),           // 01/15/2025
-            DateTimeFormatter.ofPattern("d MMMM yyyy"),          // 15 January 2025
-            DateTimeFormatter.ofPattern("MMMM d, yyyy"),         // January 15, 2025
-            DateTimeFormatter.ofPattern("dd-MM-yyyy")            // 15-01-2025
+            strictFormatter("uuuu/MM/dd"),                        // 2025/01/15
+            strictFormatter("MM/dd/uuuu"),                        // 01/15/2025 when unambiguous
+            strictFormatter("d MMMM uuuu"),                       // 15 January 2025
+            strictFormatter("MMMM d, uuuu"),                      // January 15, 2025
+            strictFormatter("dd-MM-uuuu")                         // 15-01-2025 when unambiguous
     );
 
     /**
@@ -31,7 +32,13 @@ public class DateUtil {
             return null;
         }
 
-        // Try standard formats
+        if (isAmbiguousNumericDate(clean)) {
+            logger.debug("Refusing ambiguous numeric date string '{}'.", clean);
+            return null;
+        }
+
+        // Try standard formats strictly. ResolverStyle.STRICT prevents dates such
+        // as 2025-02-30 from being silently normalised by a formatter.
         for (DateTimeFormatter fmt : FORMATTERS) {
             try {
                 return LocalDate.parse(clean, fmt);
@@ -41,6 +48,31 @@ public class DateUtil {
 
         logger.debug("Could not parse date string '{}'. Treating as null (ambiguous/unspecified).", clean);
         return null;
+    }
+
+    private static DateTimeFormatter strictFormatter(String pattern) {
+        return DateTimeFormatter.ofPattern(pattern).withResolverStyle(ResolverStyle.STRICT);
+    }
+
+    /**
+     * Numeric dates whose first two components are both 12 or below do not
+     * identify a unique day/month ordering. ISO and year-first dates are not
+     * affected.
+     */
+    private static boolean isAmbiguousNumericDate(String value) {
+        String[] slashParts = value.split("/");
+        String[] dashParts = value.split("-");
+        String[] parts = slashParts.length == 3 ? slashParts : (dashParts.length == 3 ? dashParts : null);
+        if (parts == null || parts[0].length() == 4) {
+            return false;
+        }
+        try {
+            int first = Integer.parseInt(parts[0]);
+            int second = Integer.parseInt(parts[1]);
+            return first >= 1 && first <= 12 && second >= 1 && second <= 12;
+        } catch (NumberFormatException ignored) {
+            return false;
+        }
     }
 
     public static String formatIso(LocalDate date) {

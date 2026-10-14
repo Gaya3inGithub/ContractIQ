@@ -6,7 +6,7 @@ services:
     container_name: contractiq-mysql
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: accord
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env before starting Docker Compose}
       MYSQL_DATABASE: contractiq_db
     ports:
       - "3306:3306"
@@ -14,7 +14,7 @@ services:
       - mysql_data:/var/lib/mysql
       - ./schema.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-paccord"]
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p\"$$MYSQL_ROOT_PASSWORD\""]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -31,7 +31,7 @@ services:
     environment:
       DB_URL: jdbc:mysql://db:3306/contractiq_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=UTF-8
       DB_USER: root
-      DB_PASSWORD: accord
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env before starting Docker Compose}
       UPLOAD_DIR: /app/uploads
       MAX_FILE_SIZE_MB: 15
       LLM_API_KEY: ${LLM_API_KEY:-}

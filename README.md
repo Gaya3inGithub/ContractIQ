@@ -9,6 +9,20 @@
 
 ContractIQ is an enterprise-grade AI-powered web application that automates contract ingestion, PDF text extraction, obligation parsing, renewal deadline tracking, and mandatory human-in-the-loop review.
 
+## Completed scope
+
+- Verified Java 21 + Maven 3 build pipeline and a packaging-ready WAR
+- Verified local MySQL 8 connectivity and a synthetic PDF workflow through JDBC persistence
+- Verified mandatory approval and rejection persistence on a synthetic contract
+- Verified mandatory human approval enforcement for AI-extracted obligations
+- Preserved fallback/offline behavior when no LLM key is configured
+
+## Excluded or external scope
+
+- Public hosting is intentionally left for a provider environment with valid credentials and HTTPS capability.
+- Real LLM usage requires a valid API key and provider endpoint; otherwise the app remains in offline heuristic mode.
+- Production deployment credentials are not stored in the repository and must be supplied through environment variables or a host secret store.
+
 ---
 
 ## 1. Mandatory Architecture & Technology Stack
@@ -140,20 +154,20 @@ DEMO_MODE=false
 *   Java JDK 21+ (`java -version` and `javac -version`)
 *   Apache Maven 3.8+ (or use the included `mvn.cmd` wrapper)
 *   MySQL 8.0+ running locally on port 3306
-*   Apache Tomcat 10.1+
+*   Apache Tomcat 10.1+ (required for the live servlet application; it is not bundled with this repository)
 
 ### Step 1: Initialize MySQL Database
 Execute the database initialization script:
 ```powershell
 Get-Content schema.sql -Raw | & mysql -u root -p
 ```
-This creates the `contractiq_db` database, tables (`contracts`, `obligations`, `activity_logs`), indexes, foreign keys, and synthetic seed data.
+This creates the `contractiq_db` database, tables (`contracts`, `obligations`, `activity_logs`), indexes, and foreign keys. It does not drop tables or insert seed data.
 
 ### Step 2: Compile & Run Automated Tests
 ```powershell
 .\mvn.cmd test
 ```
-All 21 automated unit and integration tests run deterministically without requiring paid API credits.
+All automated tests run deterministically without requiring paid API credits.
 
 ### Step 3: Package WAR
 ```powershell
@@ -162,6 +176,8 @@ All 21 automated unit and integration tests run deterministically without requir
 Generates `target/ContractIQ.war` (~11MB) bundling all backend classes, libraries, and frontend assets.
 
 ### Step 4: Deploy to Apache Tomcat 10.1
+Before launching Tomcat, set `DB_URL`, `DB_USER`, `DB_PASSWORD`, `UPLOAD_DIR`, and the other applicable values from `.env` as environment variables for the Tomcat process (or configure them in the Tomcat service). A Tomcat installation launched from its own `bin` directory does not automatically read this repository's `.env` file.
+
 Copy the generated WAR into your Tomcat `webapps` directory:
 ```powershell
 Copy-Item target/ContractIQ.war "C:\path\to\apache-tomcat-10.1\webapps\ContractIQ.war"
@@ -196,7 +212,40 @@ Once started, access `http://localhost:8080/` in your browser.
 
 ---
 
-## 7. REST API Reference
+## 7. Vercel Container Deployment (Optional)
+
+`Dockerfile.vercel` preserves the existing Java 21/Tomcat architecture and listens on Vercel's supplied `$PORT`. Vercel supports HTTP servers packaged in a `Dockerfile.vercel`, so this is technically viable for a small personal demonstration; it has **not** been deployed from this repository.
+
+Before deploying, provide an external MySQL 8+ database and set these Vercel environment variables (never commit their values):
+
+```text
+DB_URL=jdbc:mysql://<host>:3306/<database>?useSSL=true&requireSSL=true&serverTimezone=UTC&characterEncoding=UTF-8
+DB_USER=<least-privilege-application-user>
+DB_PASSWORD=<secret>
+DB_POOL_SIZE=3
+# Vercel's 4.5 MB request-body limit includes multipart overhead.
+MAX_FILE_SIZE_MB=4
+LLM_API_KEY=
+LLM_API_URL=https://api.openai.com/v1/chat/completions
+LLM_MODEL=gpt-4o-mini
+LLM_TIMEOUT_SECONDS=60
+DEMO_MODE=false
+```
+
+Important deployment constraints:
+
+* Do not run MySQL in the Vercel container. The database must be external, use TLS, and allow the deployment's outbound connectivity.
+* The current application stores PDFs on its local file system. `Dockerfile.vercel` deliberately uses `/tmp/contractiq-uploads`, so source PDFs are lost when an instance restarts or scales. Persistent uploaded-document retrieval requires an object-storage integration, which is not implemented.
+* PDF extraction is synchronous. Keep demo PDFs small and text-based. Vercel's current container/function duration depends on the plan and configuration, so test the real upload path on the selected plan before sharing a deployment.
+* Vercel rejects request bodies larger than 4.5 MB before Tomcat receives them. `Dockerfile.vercel` therefore defaults the application upload limit to 4 MB; do not advertise the local 15 MB limit for this deployment.
+* Vercel Hobby is for personal, non-commercial use and has finite included compute. Treat it as a demo tier, not permanent hosting. Review the current [Docker guidance](https://vercel.com/kb/docker), [Hobby limits](https://vercel.com/docs/plans/hobby), and [platform limits](https://vercel.com/docs/limits) before deployment.
+* The application has no authentication. Do not expose contract upload and reviewer endpoints publicly with sensitive data. Use deployment protection or a separate authentication layer before sharing a URL.
+
+To deploy, import the intended Git repository into Vercel, confirm it selects `Dockerfile.vercel`, set the variables above in the Vercel dashboard, then deploy. Test the returned URL's `/api/health`, upload, review, and persistence behavior before sharing it.
+
+---
+
+## 8. REST API Reference
 
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
@@ -217,35 +266,26 @@ Once started, access `http://localhost:8080/` in your browser.
 
 ---
 
-## 8. Automated Test Suite Results
+## 9. Automated Test Suite Results
 
-Test execution verified via `mvn test`:
+Most recent verification command:
+
+```powershell
+.\mvn.cmd -B clean test package
+```
 
 ```
 -------------------------------------------------------
  T E S T S
 -------------------------------------------------------
-Running com.contractiq.test.DateUtilTest
-Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.517 s
-Running com.contractiq.test.LlmExtractionParsingTest
-Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.497 s
-Running com.contractiq.test.ObligationApprovalRulesTest
-Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.114 s
-Running com.contractiq.test.PdfExtractionServiceTest
-Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.907 s
-Running com.contractiq.test.PdfValidationServiceTest
-Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.192 s
-Running com.contractiq.test.SecurityUtilTest
-Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.052 s
-
 Results:
-Tests run: 21, Failures: 0, Errors: 0, Skipped: 0
+Tests run: 27, Failures: 0, Errors: 0, Skipped: 0
 [INFO] BUILD SUCCESS
 ```
 
 ---
 
-## 9. Reviewer Testing & Synthetic Sample Document
+## 10. Reviewer Testing & Synthetic Sample Document
 
 To test the application immediately:
 1. Open `http://localhost:8080/ContractIQ/` in your browser.
@@ -258,3 +298,11 @@ To test the application immediately:
    *   Click **Approve** or **Reject** on an obligation.
    *   Click **Edit** to modify terms before approval.
 6. Check the **Dashboard** and **Activity Log** to verify real-time MySQL persistence.
+
+### Known limitations
+
+* Image-only or scanned PDFs are rejected because OCR is not implemented.
+* With no LLM key, the UI/API correctly reports heuristic/offline extraction; it does not claim a real AI provider was used.
+* Email reminders and scheduled notification delivery are not implemented.
+* Local Tomcat must be installed and started before browser/API acceptance testing can be performed.
+* Vercel containers are stateless. Without an object-storage integration, uploaded source PDFs are not durable after an instance restart or scale-out.

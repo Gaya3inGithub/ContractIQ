@@ -58,6 +58,7 @@ class ObligationApprovalRulesTest {
 
         when(obligationDao.findById(10L)).thenReturn(Optional.of(ob));
         when(obligationDao.findByContractId(1L)).thenReturn(List.of(ob));
+        when(obligationDao.updatePendingApprovalStatus(10L, "APPROVED", "Senior Legal Reviewer", "Audited against schedule A")).thenReturn(true);
 
         ApprovalDecisionRequest req = new ApprovalDecisionRequest("Senior Legal Reviewer", "Audited against schedule A");
         Obligation approved = obligationService.approveObligation(10L, req);
@@ -67,7 +68,7 @@ class ObligationApprovalRulesTest {
         assertEquals("Senior Legal Reviewer", approved.getApprovedBy());
         assertEquals("Audited against schedule A", approved.getReviewComment());
 
-        verify(obligationDao).updateApprovalStatus(eq(10L), eq("APPROVED"), eq("Senior Legal Reviewer"), eq("Audited against schedule A"));
+        verify(obligationDao).updatePendingApprovalStatus(eq(10L), eq("APPROVED"), eq("Senior Legal Reviewer"), eq("Audited against schedule A"));
         verify(contractDao).updateReviewStatus(eq(1L), eq("APPROVED"), any());
         verify(activityDao).log(any());
     }
@@ -82,6 +83,7 @@ class ObligationApprovalRulesTest {
 
         when(obligationDao.findById(20L)).thenReturn(Optional.of(ob));
         when(obligationDao.findByContractId(2L)).thenReturn(List.of(ob));
+        when(obligationDao.updatePendingApprovalStatus(20L, "REJECTED", "Compliance Officer", "Non-standard clause rejected")).thenReturn(true);
 
         ApprovalDecisionRequest req = new ApprovalDecisionRequest("Compliance Officer", "Non-standard clause rejected");
         Obligation rejected = obligationService.rejectObligation(20L, req);
@@ -90,7 +92,7 @@ class ObligationApprovalRulesTest {
         assertEquals("REJECTED", rejected.getApprovalStatus());
         assertEquals("Compliance Officer", rejected.getApprovedBy());
 
-        verify(obligationDao).updateApprovalStatus(eq(20L), eq("REJECTED"), eq("Compliance Officer"), eq("Non-standard clause rejected"));
+        verify(obligationDao).updatePendingApprovalStatus(eq(20L), eq("REJECTED"), eq("Compliance Officer"), eq("Non-standard clause rejected"));
         verify(contractDao).updateReviewStatus(eq(2L), eq("REJECTED"), any());
     }
 
@@ -117,5 +119,31 @@ class ObligationApprovalRulesTest {
 
         verify(obligationDao).update(ob);
         verify(activityDao).log(any());
+    }
+
+    @Test
+    void testReviewedObligationCannotBeApprovedAgain() throws SQLException {
+        Obligation ob = new Obligation();
+        ob.setId(40L);
+        ob.setApprovalStatus("APPROVED");
+        when(obligationDao.findById(40L)).thenReturn(Optional.of(ob));
+
+        assertThrows(com.contractiq.exception.ValidationException.class,
+                () -> obligationService.approveObligation(40L, new ApprovalDecisionRequest("Reviewer", "Again")));
+        verify(obligationDao, never()).updatePendingApprovalStatus(any(), any(), any(), any());
+    }
+
+    @Test
+    void testAtomicDecisionRejectsConcurrentReviewer() throws SQLException {
+        Obligation ob = new Obligation();
+        ob.setId(50L);
+        ob.setContractId(5L);
+        ob.setApprovalStatus("PENDING");
+        when(obligationDao.findById(50L)).thenReturn(Optional.of(ob));
+        when(obligationDao.updatePendingApprovalStatus(50L, "APPROVED", "Reviewer", "Approved")).thenReturn(false);
+
+        assertThrows(com.contractiq.exception.ValidationException.class,
+                () -> obligationService.approveObligation(50L, new ApprovalDecisionRequest("Reviewer", "Approved")));
+        verify(activityDao, never()).log(any());
     }
 }

@@ -367,12 +367,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 <button class="btn btn-sm btn-secondary edit-obligation-btn" data-id="${o.id}">
                   <i data-lucide="edit-3"></i> Edit
                 </button>
-                ${!isApproved ? `
+                ${isPending ? `
                   <button class="btn btn-sm btn-success approve-obligation-btn" data-id="${o.id}">
                     <i data-lucide="check"></i> Approve
                   </button>
                 ` : ''}
-                ${!isRejected ? `
+                ${isPending ? `
                   <button class="btn btn-sm btn-danger reject-obligation-btn" data-id="${o.id}">
                     <i data-lucide="x"></i> Reject
                   </button>
@@ -436,8 +436,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Handle Approve Decision
   async function handleApproveObligation(id) {
+    const reviewerName = window.prompt('Enter your reviewer name for the audit record:');
+    if (!reviewerName || !reviewerName.trim()) return;
     try {
-      const updated = await API.approveObligation(id, 'Legal Reviewer', 'Verified and confirmed compliant.');
+      const updated = await API.approveObligation(id, reviewerName.trim(), 'Verified and confirmed compliant.');
       showToast(`Obligation #${id} APPROVED successfully.`, 'success');
       loadObligations();
       checkSystemHealth();
@@ -448,8 +450,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Handle Reject Decision
   async function handleRejectObligation(id) {
+    const reviewerName = window.prompt('Enter your reviewer name for the audit record:');
+    if (!reviewerName || !reviewerName.trim()) return;
     try {
-      const updated = await API.rejectObligation(id, 'Legal Reviewer', 'Marked as rejected / non-applicable.');
+      const updated = await API.rejectObligation(id, reviewerName.trim(), 'Marked as rejected / non-applicable.');
       showToast(`Obligation #${id} marked as REJECTED.`, 'info');
       loadObligations();
       checkSystemHealth();
@@ -595,7 +599,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('diag-java-version').textContent = health.javaVersion;
       document.getElementById('diag-db-status').textContent = health.components.database;
       document.getElementById('diag-llm-engine').textContent = health.components.llmEngine;
-      document.getElementById('diag-storage-path').textContent = health.components.storagePath;
+      document.getElementById('diag-storage-path').textContent = 'Server-managed';
       document.getElementById('diag-server-time').textContent = health.timestamp;
     } catch (err) {
       showToast('Diagnostics check failed: ' + err.message, 'error');

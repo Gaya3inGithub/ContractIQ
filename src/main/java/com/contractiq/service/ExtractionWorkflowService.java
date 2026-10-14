@@ -23,7 +23,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.nio.file.Files;
@@ -74,31 +73,36 @@ public class ExtractionWorkflowService {
         String safeOriginalName = SecurityUtil.sanitizeFileName(originalFileName);
         String storageFileName = SecurityUtil.generateStorageFileName(safeOriginalName);
         File targetFile = new File(AppConfig.getUploadDir(), storageFileName);
+        boolean completed = false;
 
         logger.info("Starting ingestion workflow for '{}' -> '{}'", originalFileName, targetFile.getAbsolutePath());
 
-        // Step 1: Save uploaded stream safely to disk
-        byte[] fileBytes;
         try {
-            fileBytes = fileStream.readAllBytes();
-            try (FileOutputStream fos = new FileOutputStream(targetFile)) {
-                fos.write(fileBytes);
+            // Step 1: Save the stream. Validation follows before the file is
+            // read back for hashing, so an oversized payload is never retained.
+            try {
+                Files.copy(fileStream, targetFile.toPath());
+            } catch (Exception e) {
+                logger.error("Failed to write uploaded PDF file to disk: {}", e.getMessage());
+                throw new StorageException("Failed to save uploaded contract file.", e);
             }
-        } catch (Exception e) {
-            logger.error("Failed to write uploaded PDF file to disk: {}", e.getMessage());
-            throw new StorageException("Failed to save uploaded contract file: " + e.getMessage(), e);
-        }
 
-        // Step 2: Validate PDF format, size, and magic bytes
-        pdfValidationService.validatePdfFile(targetFile, originalFileName);
-        String sha256 = SecurityUtil.computeSha256(fileBytes);
+            // Step 2: Validate PDF format, size, and magic bytes
+            pdfValidationService.validatePdfFile(targetFile, originalFileName);
+            byte[] fileBytes;
+            try {
+                fileBytes = Files.readAllBytes(targetFile.toPath());
+            } catch (Exception e) {
+                throw new StorageException("Failed to read the validated contract file.", e);
+            }
+            String sha256 = SecurityUtil.computeSha256(fileBytes);
 
-        // Step 3: Extract text via Apache PDFBox
-        ExtractedPdfContent pdfContent = pdfExtractionService.extractText(targetFile);
+            // Step 3: Extract text via Apache PDFBox
+            ExtractedPdfContent pdfContent = pdfExtractionService.extractText(targetFile);
 
-        // Step 4: AI Analysis via LLM Service (or heuristic fallback)
-        LlmExtractionResult aiResult = llmService.extractContractObligations(safeOriginalName, pdfContent);
-        ContractExtractionDto extractedDto = aiResult.getContractData();
+            // Step 4: AI Analysis via LLM Service (or heuristic fallback)
+            LlmExtractionResult aiResult = llmService.extractContractObligations(safeOriginalName, pdfContent);
+            ContractExtractionDto extractedDto = aiResult.getContractData();
 
         // Step 5: Convert extraction DTO to Contract entity
         Contract contract = new Contract();
@@ -131,7 +135,8 @@ public class ExtractionWorkflowService {
         // AI extraction NEVER automatically approves a contract or obligation.
         contract.setReviewStatus("NEEDS_REVIEW");
         contract.setConfidenceScore(extractedDto.getConfidenceScore() != null ? extractedDto.getConfidenceScore() : new BigDecimal("0.90"));
-        contract.setReviewNotes("AI extraction completed by " + aiResult.getModelUsed() + ". Awaiting human review.");
+        contract.setReviewNotes((aiResult.isRealLlm() ? "LLM" : "Heuristic") + " extraction completed by "
+                + aiResult.getModelUsed() + ". Awaiting human review.");
         contract.setRawTextExcerpt(pdfContent.getExcerpt(4000));
 
         // Step 6: Persist Contract in MySQL
@@ -148,7 +153,7 @@ public class ExtractionWorkflowService {
                 ob.setDescription(oDto.getDescription() != null ? oDto.getDescription() : "");
                 ob.setResponsibleParty(oDto.getResponsibleParty() != null ? oDto.getResponsibleParty() : "Unspecified");
                 ob.setDeadlineDate(DateUtil.parseSafe(oDto.getDeadlineDate()));
-                ob.setFrequency(oDto.getFrequency() != null ? oDto.getFrequency() : "ONE_TIME");
+                ob.setFrequency(oDto.getFrequency());
                 ob.setCategory(oDto.getCategory() != null ? oDto.getCategory() : "OTHER");
                 ob.setSourceExcerpt(oDto.getSourceExcerpt());
                 ob.setPageNumber(oDto.getPageNumber() != null ? oDto.getPageNumber() : 1);
@@ -179,6 +184,16 @@ public class ExtractionWorkflowService {
         long totalDuration = System.currentTimeMillis() - startTime;
         logger.info("Ingestion workflow for contract #{} completed in {} ms.", contractId, totalDuration);
 
-        return contract;
+            completed = true;
+            return contract;
+        } finally {
+            if (!completed) {
+                try {
+                    Files.deleteIfExists(targetFile.toPath());
+                } catch (Exception cleanupError) {
+                    logger.warn("Could not remove incomplete upload '{}': {}", targetFile.getName(), cleanupError.getMessage());
+                }
+            }
+        }
     }
 }
