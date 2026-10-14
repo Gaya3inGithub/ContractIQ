@@ -44,6 +44,12 @@ class DateUtilTest {
     }
 
     @Test
+    void testParseCommonLegalDateText() {
+        assertEquals(LocalDate.of(2026, 1, 1), DateUtil.parseSafe("1 January 2026"));
+        assertEquals(LocalDate.of(2026, 12, 31), DateUtil.parseSafe("31 December 2026"));
+    }
+
+    @Test
     void testCalculateNoticeDeadline() {
         LocalDate expiry = LocalDate.of(2026, 1, 1);
         LocalDate deadline = DateUtil.calculateNoticeDeadline(expiry, 60);

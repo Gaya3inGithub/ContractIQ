@@ -106,13 +106,23 @@ public class RuleBasedFallbackExtractor {
     }
 
     private String extractEffectiveDate(String text) {
-        Pattern p = Pattern.compile("(?i)(?:effective\\s+(?:as\\s+of|date:?)|dated\\s+as\\s+of)\\s+([A-Za-z0-9,\\s]{6,25})");
-        Matcher m = p.matcher(text);
-        if (m.find()) {
-            LocalDate d = DateUtil.parseSafe(m.group(1).trim());
-            if (d != null) return DateUtil.formatIso(d);
+        String[] effectiveLabels = {
+                "effective date",
+                "effective as of",
+                "dated as of",
+                "contract start date",
+                "start date",
+                "commencement date",
+                "date of this agreement"
+        };
+        for (String label : effectiveLabels) {
+            String value = extractDateValueAfterLabel(text, label);
+            if (value != null) {
+                LocalDate d = DateUtil.parseSafe(value);
+                if (d != null) return DateUtil.formatIso(d);
+            }
         }
-        // Fallback to ISO date pattern search
+
         Pattern pIso = Pattern.compile("\\b(202[4-9]-\\d{2}-\\d{2})\\b");
         Matcher mIso = pIso.matcher(text);
         if (mIso.find()) {
@@ -122,24 +132,69 @@ public class RuleBasedFallbackExtractor {
     }
 
     private String extractExpirationDate(String text) {
-        Pattern p = Pattern.compile("(?i)(?:expire[s]?\\s+on|expiration\\s+date:?|terminat(?:es|ion)\\s+on)\\s+([A-Za-z0-9,\\s\\-]{6,25})");
-        Matcher m = p.matcher(text);
-        if (m.find()) {
-            LocalDate d = DateUtil.parseSafe(m.group(1).trim());
-            if (d != null) return DateUtil.formatIso(d);
+        String[] expirationLabels = {
+                "expiration date",
+                "expiry date",
+                "contract end date",
+                "end date",
+                "term expiration",
+                "term end date",
+                "contract expiration",
+                "expires on",
+                "expire on",
+                "expires",
+                "termination date",
+                "terminates on",
+                "term ends on"
+        };
+        for (String label : expirationLabels) {
+            String value = extractDateValueAfterLabel(text, label);
+            if (value != null) {
+                LocalDate d = DateUtil.parseSafe(value);
+                if (d != null) return DateUtil.formatIso(d);
+            }
         }
         return null;
     }
 
     private Integer extractNoticePeriodDays(String text) {
-        Pattern p = Pattern.compile("(?i)(?:at\\s+least|prior\\s+notice\\s+of)\\s+(\\d{1,3})\\s+(?:calendar\\s+)?days");
-        Matcher m = p.matcher(text);
-        if (m.find()) {
-            try {
-                return Integer.parseInt(m.group(1));
-            } catch (NumberFormatException ignored) {}
+        String[] patterns = {
+                "(?i)(?:at\\s+least|minimum|not\\s+less\\s+than|prior\\s+notice\\s+of)\\s+(\\d{1,3})\\s+(?:calendar\\s+)?days",
+                "(?i)(?:renewal\\s+notice|notice\\s+period|notice\\s*:?)\\s*[:\\-]?\\s*(\\d{1,3})\\s*(?:days?|day)\\s*(?:written\\s+)?notice",
+                "(?i)(\\d{1,3})\\s*(?:days?|day)\\s*(?:written\\s+)?notice\\s+(?:before|prior\\s+to)\\s+(?:renewal|extension)",
+                "(?i)(\\d{1,3})\\s*(?:day|days)\\s*'s?\\s*written\\s+notice\\s+(?:before|prior\\s+to)\\s+(?:renewal|extension)",
+                "(?i)(\\d{1,3})\\s*[- ]day(?:s)?\\s+written\\s+notice"
+        };
+
+        for (String pattern : patterns) {
+            Matcher m = Pattern.compile(pattern).matcher(text);
+            if (m.find()) {
+                try {
+                    return Integer.parseInt(m.group(1));
+                } catch (NumberFormatException ignored) {}
+            }
         }
         return null;
+    }
+
+    private String extractDateValueAfterLabel(String text, String label) {
+        String pattern = "(?i)" + Pattern.quote(label) + "\\s*[:\\-]?\\s*([A-Za-z0-9,\\s'\"-]{4,40})";
+        Matcher m = Pattern.compile(pattern).matcher(text);
+        if (m.find()) {
+            String candidate = normalizeDateText(m.group(1));
+            if (!candidate.isEmpty()) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    private String normalizeDateText(String value) {
+        if (value == null) return null;
+        String normalized = value.trim();
+        normalized = normalized.replaceAll("[;,.]+$", "").trim();
+        normalized = normalized.replaceAll("^(?:on|by)\\s+", "").trim();
+        return normalized;
     }
 
     private List<ObligationExtractionDto> extractObligations(ExtractedPdfContent pdfContent, String p1, String p2) {

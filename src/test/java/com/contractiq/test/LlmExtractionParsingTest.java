@@ -106,6 +106,22 @@ class LlmExtractionParsingTest {
     }
 
     @Test
+    void testRuleBasedFallbackExtractorHandlesCommonLegalDateAndNoticeWording() {
+        String syntheticText = """
+                Contract Start Date: 1 January 2026.
+                Contract End Date: 31 December 2026.
+                Renewal Notice: 30 days' written notice before renewal.
+                """;
+
+        ExtractedPdfContent content = new ExtractedPdfContent(syntheticText, 1, Map.of(1, syntheticText));
+        ContractExtractionDto data = new RuleBasedFallbackExtractor().extract("sample.pdf", content).getContractData();
+
+        assertEquals("2026-01-01", data.getEffectiveDate());
+        assertEquals("2026-12-31", data.getExpirationDate());
+        assertEquals(30, data.getRenewalNoticePeriodDays());
+    }
+
+    @Test
     void testRuleBasedFallbackDoesNotInventObligationsWhenNoEvidenceExists() {
         String syntheticText = "This document records a meeting between the parties and contains no contractual duties.";
         ExtractedPdfContent content = new ExtractedPdfContent(syntheticText, 1, Map.of(1, syntheticText));
