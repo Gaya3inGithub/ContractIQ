@@ -1,0 +1,42 @@
+# Compiled class files
+target/
+*.class
+
+# Log files
+*.log
+logs/
+
+# Package Files
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Environment files and credentials
+.env
+*.local
+credentials.json
+secrets.properties
+
+# IDE specific files
+.idea/
+*.iml
+.vscode/
+!.vscode/settings.json
+.project
+.classpath
+.settings/
+.nb-gradle/
+nbproject/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Temporary and upload directories
+uploads/*
+!uploads/.gitkeep
+temp/*
+!temp/.gitkeep

@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ContractIQ — AI Contract Obligation & Renewal Assistant</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Bootstrap 5 Grid and Utilities -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap-grid.min.css" rel="stylesheet">
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+  <!-- ContractIQ Styles -->
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <div class="app-container">
+
+    <!-- 1. SIDEBAR -->
+    <aside class="sidebar">
+      <div class="brand-section">
+        <div class="brand-icon">
+          <i data-lucide="scale"></i>
+        </div>
+        <div class="brand-text">
+          <h1>ContractIQ</h1>
+          <span class="brand-badge">Enterprise AI</span>
+        </div>
+      </div>
+
+      <nav class="nav-menu">
+        <a class="nav-item active" data-view="dashboard">
+          <i data-lucide="layout-dashboard"></i>
+          <span>Dashboard</span>
+        </a>
+        <a class="nav-item" data-view="contracts">
+          <i data-lucide="folder-lock"></i>
+          <span>Contracts</span>
+        </a>
+        <a class="nav-item" data-view="obligations">
+          <i data-lucide="check-square"></i>
+          <span>Obligations Review</span>
+          <span class="nav-badge" id="nav-pending-badge">AI</span>
+        </a>
+        <a class="nav-item" data-view="renewals">
+          <i data-lucide="calendar-clock"></i>
+          <span>Renewals Tracker</span>
+        </a>
+        <a class="nav-item" data-view="activity">
+          <i data-lucide="history"></i>
+          <span>Activity Log</span>
+        </a>
+        <a class="nav-item" data-view="settings">
+          <i data-lucide="settings"></i>
+          <span>Diagnostics</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="disclaimer-pill">
+          <i data-lucide="shield-alert" style="width:16px;height:16px;color:var(--accent-amber);flex-shrink:0;"></i>
+          <span>Mandatory human approval enforced. AI outputs require legal counsel review.</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- 2. MAIN CONTENT WRAPPER -->
+    <div class="main-wrapper">
+      
+      <!-- Top Bar -->
+      <header class="topbar">
+        <div class="topbar-left">
+          <h2 class="page-title" id="current-page-title">Executive Dashboard</h2>
+        </div>
+
+        <div class="topbar-right">
+          <!-- System / AI Mode Badge -->
+          <div id="system-health-badge" class="status-badge">
+            <span class="status-indicator"></span>
+            <span>Checking Engine...</span>
+          </div>
+
+          <!-- Upload Quick Action Button -->
+          <button class="btn btn-primary btn-sm open-upload-modal-btn">
+            <i data-lucide="upload-cloud"></i>
+            <span>Upload Contract</span>
+          </button>
+
+          <!-- Theme Toggle -->
+          <button class="btn-icon" id="theme-toggle-btn" title="Toggle Light/Dark Theme">
+            <i data-lucide="sun"></i>
+          </button>
+
+          <!-- User Profile -->
+          <div class="user-profile">
+            <div class="user-avatar">LC</div>
+            <div class="user-name">Legal Reviewer</div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Content Area -->
+      <main class="content-area">
+
+        <!-- VIEW: DASHBOARD -->
+        <section id="view-dashboard" class="view-container">
+          
+          <!-- Stat Cards -->
+          <div class="stat-grid">
+            <div class="stat-card">
+              <div class="stat-icon-wrapper blue">
+                <i data-lucide="files"></i>
+              </div>
+              <div class="stat-info">
+                <div class="stat-value" id="stat-total-contracts">0</div>
+                <div class="stat-label">Total Active Contracts</div>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-icon-wrapper amber">
+                <i data-lucide="clock"></i>
+              </div>
+              <div class="stat-info">
+                <div class="stat-value" id="stat-pending-reviews">0</div>
+                <div class="stat-label">Pending Human Review</div>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-icon-wrapper emerald">
+                <i data-lucide="check-circle-2"></i>
+              </div>
+              <div class="stat-info">
+                <div class="stat-value" id="stat-approved-obligations">0</div>
+                <div class="stat-label">Approved Obligations</div>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-icon-wrapper violet">
+                <i data-lucide="calendar"></i>
+              </div>
+              <div class="stat-info">
+                <div class="stat-value" id="stat-upcoming-renewals">0</div>
+                <div class="stat-label">Upcoming Renewals</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Actions & Pipeline Hero -->
+          <div class="quick-actions-bar">
+            <div>
+              <h3 class="mb-1" style="font-size:1.15rem; font-weight:700;">AI Contract Ingestion &amp; Automated Obligation Review</h3>
+              <p class="text-secondary small mb-0">Upload a PDF agreement to extract key dates, renewal conditions, and obligations with human approval workflows.</p>
+            </div>
+            <button class="btn btn-primary open-upload-modal-btn">
+              <i data-lucide="file-up"></i> Upload &amp; Extract PDF
+            </button>
+          </div>
+
+          <!-- Charts Row -->
+          <div class="charts-grid">
+            <div class="glass-panel">
+              <div class="chart-header">
+                <h3 class="chart-title">Obligations by Category</h3>
+                <span class="badge badge-confidence">Real-time DB</span>
+              </div>
+              <div class="chart-canvas-wrapper">
+                <canvas id="chart-categories"></canvas>
+              </div>
+            </div>
+
+            <div class="glass-panel">
+              <div class="chart-header">
+                <h3 class="chart-title">Contract Types Distribution</h3>
+                <span class="badge badge-confidence">Real-time DB</span>
+              </div>
+              <div class="chart-canvas-wrapper">
+                <canvas id="chart-contract-types"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- Renewals Timeline & Recent Activity -->
+          <div class="row g-4">
+            <div class="col-lg-6">
+              <div class="glass-panel h-100">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <h3 class="chart-title"><i data-lucide="bell" style="width:18px;height:18px;color:var(--accent-cyan);vertical-align:middle;"></i> Upcoming Renewal Deadlines</h3>
+                  <a href="#renewals" class="text-secondary small" style="text-decoration:none;">View all &rarr;</a>
+                </div>
+                <div id="dashboard-renewals-list">
+                  <!-- Dynamically populated -->
+                </div>
+              </div>
+            </div>
+
+            <div class="col-lg-6">
+              <div class="glass-panel h-100">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <h3 class="chart-title"><i data-lucide="activity" style="width:18px;height:18px;color:var(--accent-indigo);vertical-align:middle;"></i> Recent Activity Feed</h3>
+                  <a href="#activity" class="text-secondary small" style="text-decoration:none;">View log &rarr;</a>
+                </div>
+                <div id="dashboard-activity-feed">
+                  <!-- Dynamically populated -->
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- VIEW: CONTRACTS -->
+        <section id="view-contracts" class="view-container" style="display:none;">
+          <div class="glass-panel mb-4">
+            <div class="filter-bar">
+              <div class="search-input-group">
+                <i data-lucide="search"></i>
+                <input type="text" id="contracts-search-input" class="form-control" placeholder="Search contracts by title, party, or agreement type...">
+              </div>
+
+              <div style="min-width: 200px;">
+                <select id="contracts-status-filter" class="form-select">
+                  <option value="">All Review Statuses</option>
+                  <option value="NEEDS_REVIEW">Needs Review</option>
+                  <option value="PARTIALLY_APPROVED">Partially Approved</option>
+                  <option value="APPROVED">Approved</option>
+                  <option value="REJECTED">Rejected</option>
+                </select>
+              </div>
+
+              <button class="btn btn-primary open-upload-modal-btn">
+                <i data-lucide="plus"></i> Ingest New Contract
+              </button>
+            </div>
+
+            <div class="table-responsive">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>Contract Title</th>
+                    <th>Parties</th>
+                    <th>Type</th>
+                    <th>Expiration</th>
+                    <th>Review Status</th>
+                    <th>AI Confidence</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="contracts-table-body">
+                  <!-- Populated via API -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- VIEW: OBLIGATIONS REVIEW (MANDATORY HUMAN APPROVAL) -->
+        <section id="view-obligations" class="view-container" style="display:none;">
+          
+          <!-- Mandatory Review Alert Banner -->
+          <div class="glass-panel mb-4" style="border-left: 4px solid var(--accent-amber); background: linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(15, 23, 42, 0.6) 100%);">
+            <div class="d-flex gap-3 align-items-center">
+              <i data-lucide="alert-octagon" style="width:32px;height:32px;color:var(--accent-amber);flex-shrink:0;"></i>
+              <div>
+                <h4 class="mb-1" style="font-size:1.05rem;">Human-in-the-Loop Obligation Verification</h4>
+                <p class="text-secondary small mb-0">
+                  AI suggestions are strictly unapproved by default. Review the contractual source excerpt, verify or edit details, and record your approval or rejection decision.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="filter-bar mb-4">
+            <div class="search-input-group">
+              <i data-lucide="search"></i>
+              <input type="text" id="obligations-search-input" class="form-control" placeholder="Search obligations, clauses, or responsible parties...">
+            </div>
+
+            <div style="min-width: 180px;">
+              <select id="obligations-status-filter" class="form-select">
+                <option value="">All Approval Statuses</option>
+                <option value="PENDING" selected>Pending Review</option>
+                <option value="APPROVED">Approved</option>
+                <option value="REJECTED">Rejected</option>
+              </select>
+            </div>
+
+            <div style="min-width: 180px;">
+              <select id="obligations-category-filter" class="form-select">
+                <option value="">All Categories</option>
+                <option value="PAYMENT">Payment</option>
+                <option value="COMPLIANCE">Compliance</option>
+                <option value="DELIVERY">Delivery</option>
+                <option value="REPORTING">Reporting</option>
+                <option value="TERMINATION">Termination</option>
+                <option value="CONFIDENTIALITY">Confidentiality</option>
+                <option value="OTHER">Other</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="obligations-list-container">
+            <!-- Populated via API -->
+          </div>
+        </section>
+
+        <!-- VIEW: RENEWALS TRACKER -->
+        <section id="view-renewals" class="view-container" style="display:none;">
+          <div class="glass-panel mb-4">
+            <h3 class="mb-2">Contract Renewal &amp; Expiration Schedule</h3>
+            <p class="text-secondary small mb-4">Track notice periods and prevents unwanted automatic contract rollovers.</p>
+
+            <div id="renewals-cards-container">
+              <!-- Populated via API -->
+            </div>
+          </div>
+        </section>
+
+        <!-- VIEW: ACTIVITY LOG -->
+        <section id="view-activity" class="view-container" style="display:none;">
+          <div class="glass-panel">
+            <h3 class="mb-2">System &amp; Review Audit Trail</h3>
+            <p class="text-secondary small mb-4">Complete immutable history of uploads, extractions, and reviewer decisions.</p>
+
+            <div class="table-responsive">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>Timestamp</th>
+                    <th>Action</th>
+                    <th>Description</th>
+                    <th>Actor</th>
+                    <th>Client IP</th>
+                  </tr>
+                </thead>
+                <tbody id="activity-table-body">
+                  <!-- Populated via API -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- VIEW: SETTINGS & DIAGNOSTICS -->
+        <section id="view-settings" class="view-container" style="display:none;">
+          <div class="row g-4">
+            <div class="col-lg-7">
+              <div class="glass-panel mb-4">
+                <h3 class="mb-3">System Runtime Diagnostics</h3>
+                <div class="row g-3 small">
+                  <div class="col-sm-6">
+                    <span class="text-muted d-block">Application Version:</span>
+                    <strong id="diag-app-version">1.0.0</strong>
+                  </div>
+                  <div class="col-sm-6">
+                    <span class="text-muted d-block">Java Virtual Machine:</span>
+                    <strong id="diag-java-version">-</strong>
+                  </div>
+                  <div class="col-sm-6">
+                    <span class="text-muted d-block">MySQL 8 Database Connection:</span>
+                    <strong id="diag-db-status" class="text-success">-</strong>
+                  </div>
+                  <div class="col-sm-6">
+                    <span class="text-muted d-block">AI Extraction Engine:</span>
+                    <strong id="diag-llm-engine" class="text-info">-</strong>
+                  </div>
+                  <div class="col-sm-12">
+                    <span class="text-muted d-block">Upload &amp; Storage Directory:</span>
+                    <code id="diag-storage-path" class="d-block p-2 rounded" style="background:rgba(0,0,0,0.3);">-</code>
+                  </div>
+                  <div class="col-sm-12">
+                    <span class="text-muted d-block">Server Time:</span>
+                    <span id="diag-server-time">-</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-lg-5">
+              <div class="glass-panel mb-4">
+                <h3 class="mb-3">Legal &amp; Compliance Disclaimer</h3>
+                <p class="small text-secondary">
+                  ContractIQ is an artificial intelligence-assisted contract lifecycle and obligation management tool. Extracted data, suggested obligations, calculated notice deadlines, and risk flags are for informational assistance only and do not constitute formal legal advice.
+                </p>
+                <div class="p-3 rounded small mt-3" style="background:rgba(56,189,248,0.06); border:1px solid rgba(56,189,248,0.2);">
+                  <strong>Zero-Trust Architecture:</strong> Uploaded PDF contracts are scanned, isolated, and strictly require credentialed human approval before legal records take effect.
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </main>
+    </div>
+
+  </div>
+
+  <!-- 3. MODALS -->
+
+  <!-- Upload Modal -->
+  <div class="modal-overlay" id="upload-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="mb-0">Upload &amp; Analyze Contract PDF</h3>
+        <button class="btn-icon" id="close-upload-modal-btn">&times;</button>
+      </div>
+
+      <div class="upload-dropzone" id="file-dropzone">
+        <div class="upload-icon-circle">
+          <i data-lucide="upload-cloud"></i>
+        </div>
+        <h4>Drag &amp; drop contract PDF here</h4>
+        <p class="text-muted small mb-3">Supports native PDF agreements up to 15MB. Encrypted documents are prohibited.</p>
+        <button class="btn btn-primary btn-sm" type="button">Browse Local File</button>
+        <input type="file" id="contract-file-input" accept=".pdf" style="display:none;">
+      </div>
+
+      <!-- Processing Status Pipeline -->
+      <div id="upload-progress" style="display:none;" class="text-center p-4">
+        <div class="spinner-border text-info mb-3" role="status" style="width:3rem;height:3rem;"></div>
+        <h4 class="mb-2">Processing Document</h4>
+        <p class="text-secondary small" id="progress-step-text">Ingesting file...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Contract Detail Modal -->
+  <div class="modal-overlay" id="contract-detail-modal">
+    <div class="modal-card" style="max-width:850px;">
+      <div class="modal-header">
+        <h3 class="mb-0" id="modal-contract-title">Contract Details</h3>
+        <button class="btn-icon" id="close-contract-modal-btn">&times;</button>
+      </div>
+
+      <div class="row g-3 small mb-4">
+        <div class="col-md-6">
+          <span class="text-muted d-block">Contract Parties:</span>
+          <strong id="modal-contract-parties">-</strong>
+        </div>
+        <div class="col-md-6">
+          <span class="text-muted d-block">Agreement Type:</span>
+          <strong id="modal-contract-type">-</strong>
+        </div>
+        <div class="col-md-3">
+          <span class="text-muted d-block">Effective Date:</span>
+          <span id="modal-contract-effective">-</span>
+        </div>
+        <div class="col-md-3">
+          <span class="text-muted d-block">Expiration Date:</span>
+          <span id="modal-contract-expiration">-</span>
+        </div>
+        <div class="col-md-6">
+          <span class="text-muted d-block">Auto-Renewal Clause:</span>
+          <span id="modal-contract-renewal">-</span>
+        </div>
+        <div class="col-md-6">
+          <span class="text-muted d-block">Payment Terms:</span>
+          <span id="modal-contract-payment">-</span>
+        </div>
+        <div class="col-md-6">
+          <span class="text-muted d-block">Penalties / Liquidated Damages:</span>
+          <span id="modal-contract-penalties">-</span>
+        </div>
+        <div class="col-md-12">
+          <span class="text-muted d-block">Termination Conditions:</span>
+          <span id="modal-contract-termination">-</span>
+        </div>
+      </div>
+
+      <h4 class="mb-2" style="font-size:0.95rem;">Extracted Contract Text Excerpt</h4>
+      <div class="p-3 rounded small text-muted mb-3" style="background:rgba(0,0,0,0.3); border:1px solid var(--glass-border); max-height:220px; overflow-y:auto; font-family:monospace; white-space:pre-wrap;" id="modal-contract-excerpt">
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Obligation Modal -->
+  <div class="modal-overlay" id="edit-obligation-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="mb-0">Edit Obligation Before Approval</h3>
+        <button class="btn-icon" id="close-edit-modal-btn">&times;</button>
+      </div>
+
+      <input type="hidden" id="edit-ob-id">
+      
+      <div class="mb-3">
+        <label class="form-label small text-muted">Obligation Title</label>
+        <input type="text" id="edit-ob-title" class="form-control" style="padding-left:14px;">
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label small text-muted">Description</label>
+        <textarea id="edit-ob-description" class="form-control" rows="3" style="padding-left:14px;"></textarea>
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-md-6">
+          <label class="form-label small text-muted">Responsible Party</label>
+          <input type="text" id="edit-ob-party" class="form-control" style="padding-left:14px;">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small text-muted">Deadline Date (YYYY-MM-DD)</label>
+          <input type="date" id="edit-ob-deadline" class="form-control" style="padding-left:14px;">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small text-muted">Frequency</label>
+          <select id="edit-ob-frequency" class="form-select">
+            <option value="ONE_TIME">One Time</option>
+            <option value="MONTHLY">Monthly</option>
+            <option value="QUARTERLY">Quarterly</option>
+            <option value="ANNUALLY">Annually</option>
+            <option value="AS_INCURRED">As Incurred</option>
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small text-muted">Category</label>
+          <select id="edit-ob-category" class="form-select">
+            <option value="PAYMENT">Payment</option>
+            <option value="COMPLIANCE">Compliance</option>
+            <option value="DELIVERY">Delivery</option>
+            <option value="REPORTING">Reporting</option>
+            <option value="TERMINATION">Termination</option>
+            <option value="CONFIDENTIALITY">Confidentiality</option>
+            <option value="OTHER">Other</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="mb-4">
+        <label class="form-label small text-muted">Reviewer Comments / Audit Notes</label>
+        <input type="text" id="edit-ob-comment" class="form-control" placeholder="e.g. Adjusted deadline per Schedule B addendum" style="padding-left:14px;">
+      </div>
+
+      <div class="d-flex justify-content-end gap-2">
+        <button class="btn btn-secondary btn-sm" id="close-edit-modal-btn-2" type="button" onclick="document.getElementById('edit-obligation-modal').classList.remove('active')">Cancel</button>
+        <button class="btn btn-primary btn-sm" id="save-obligation-btn" type="button">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container"></div>
+
+  <!-- Scripts -->
+  <script src="js/api.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    // Initialize Lucide icons on boot
+    lucide.createIcons();
+  </script>
+</body>
+</html>
