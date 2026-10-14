@@ -212,22 +212,47 @@ Once started, access `http://localhost:8080/` in your browser.
 
 ---
 
-## 7. Vercel Container Deployment (Optional)
+## 7. Safe Public Demo Hosting (Recommended)
 
-`Dockerfile.vercel` preserves the existing Java 21/Tomcat architecture and listens on Vercel's supplied `$PORT`. Vercel supports HTTP servers packaged in a `Dockerfile.vercel`, so this is technically viable for a small personal demonstration; it has **not** been deployed from this repository.
+The app's existing Java 21 + Tomcat WAR is compatible with a standard container host, but it is not the best fit for a Vercel-only setup for a real upload workflow.
 
-Before deploying, provide an external MySQL 8+ database and set these Vercel environment variables (never commit their values):
+### Why Vercel is not the simplest safe choice here
+
+* Vercel's current Docker runtime is technically compatible with Java/Tomcat, but the platform still imposes a 4.5 MB request-body cap before Tomcat sees the upload.
+* `Dockerfile.vercel` uses `/tmp/contractiq-uploads`, which is stateless and gets wiped on restart or scale-out.
+* Uploaded PDF source files therefore disappear unless you add durable object storage or a persistent volume.
+* For a public assignment demo, this makes the upload-and-review path unreliable and not suitable for genuine contract data.
+
+### Recommended path for a short-lived assignment demo
+
+Use the same project code and keep the existing Java/Tomcat architecture, but deploy it to a host that supports a real database and durable file storage:
+
+1. MySQL: `Railway` or `Render` managed MySQL/DB service (low-cost; not a free long-term database)
+2. Durable PDF storage: `Cloudflare R2` (free tier: 10 GB storage, 1M Class A operations, 10M Class B operations, free egress)
+3. Host: `Railway` or `Render` container/web service for the Java/Tomcat app
+
+This keeps the app architecture unchanged while avoiding the Vercel 4.5 MB upload cap and the stateless filesystem problem.
+
+### Deployment environment variables
+
+Set these in the host's encrypted environment settings (never commit them):
 
 ```text
 DB_URL=jdbc:mysql://<host>:3306/<database>?useSSL=true&requireSSL=true&serverTimezone=UTC&characterEncoding=UTF-8
 DB_USER=<least-privilege-application-user>
 DB_PASSWORD=<secret>
 DB_POOL_SIZE=3
-# Vercel's 4.5 MB request-body limit includes multipart overhead.
-MAX_FILE_SIZE_MB=4
+MAX_FILE_SIZE_MB=8
 APP_ENV=production
 APP_BASIC_AUTH_USERNAME=<reviewer-login-name>
 APP_BASIC_AUTH_PASSWORD=<secret>
+UPLOAD_DIR=/var/lib/contractiq/uploads
+STORAGE_PROVIDER=object-store
+OBJECT_STORAGE_BUCKET=<bucket-name>
+OBJECT_STORAGE_ENDPOINT=https://<accountid>.r2.cloudflarestorage.com
+OBJECT_STORAGE_REGION=auto
+OBJECT_STORAGE_ACCESS_KEY_ID=<key>
+OBJECT_STORAGE_SECRET_ACCESS_KEY=<secret>
 LLM_API_KEY=
 LLM_API_URL=https://api.openai.com/v1/chat/completions
 LLM_MODEL=gpt-4o-mini
@@ -235,16 +260,22 @@ LLM_TIMEOUT_SECONDS=60
 DEMO_MODE=false
 ```
 
-Important deployment constraints:
+### Recommended provider choices and current pricing
 
-* Do not run MySQL in the Vercel container. The database must be external, use TLS, and allow the deployment's outbound connectivity.
-* The current application stores PDFs on its local file system. `Dockerfile.vercel` deliberately uses `/tmp/contractiq-uploads`, so source PDFs are lost when an instance restarts or scales. Persistent uploaded-document retrieval requires an object-storage integration, which is not implemented.
-* PDF extraction is synchronous. Keep demo PDFs small and text-based. Vercel's current container/function duration depends on the plan and configuration, so test the real upload path on the selected plan before sharing a deployment.
-* Vercel rejects request bodies larger than 4.5 MB before Tomcat receives them. `Dockerfile.vercel` therefore defaults the application upload limit to 4 MB; do not advertise the local 15 MB limit for this deployment.
-* Vercel Hobby is for personal, non-commercial use and has finite included compute. Treat it as a demo tier, not permanent hosting. Review the current [Docker guidance](https://vercel.com/kb/docker), [Hobby limits](https://vercel.com/docs/plans/hobby), and [platform limits](https://vercel.com/docs/limits) before deployment.
-* In production, ContractIQ now fails closed until `APP_BASIC_AUTH_USERNAME` and `APP_BASIC_AUTH_PASSWORD` are configured. The built-in HTTP Basic authentication protects every route, including contract upload and reviewer actions. Do not place either value in source control. Vercel Deployment Protection is an optional additional layer.
+* Cloudflare R2: best fit for object storage; free tier includes 10 GB storage per month and free egress. This is sufficient for a short demo and small PDF sets.
+* Railway Hobby: low-cost path for a Java/Tomcat container and database; pricing is designed for small personal projects, and the app's existing WAR remains compatible.
+* Render: viable for a small public app, but its free database and ephemeral filesystem are not appropriate for production or durable PDF retention. Use a paid managed database if you choose this route.
 
-To deploy, import the intended Git repository into Vercel, confirm it selects `Dockerfile.vercel`, set the variables above in the Vercel dashboard, then deploy. Test the returned URL's `/api/health`, upload, review, and persistence behavior before sharing it.
+### Important deployment constraints
+
+* Do not run MySQL inside the application container for a public demo. Use a managed external database.
+* Do not rely on `/tmp` or a restart-only filesystem for uploaded invoices or PDF source documents.
+* Keep upload sizes small enough for the host's request limits; if using Vercel specifically, cap at 4 MB and accept the limits.
+* In production, ContractIQ fails closed until `APP_BASIC_AUTH_USERNAME` and `APP_BASIC_AUTH_PASSWORD` are configured. The built-in HTTP Basic authentication protects every route, including contract upload and reviewer actions.
+
+### If you still want Vercel only
+
+`Dockerfile.vercel` can be used for a very small proof-of-concept, but only with a managed external DB and an object store, and only after confirming the 4.5 MB upload limit and stateless storage behavior are acceptable for your demo. It is not a safe choice for real contract uploads without those guardrails.
 
 ---
 
